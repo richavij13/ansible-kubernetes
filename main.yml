@@ -1,0 +1,30 @@
+---
+- name: download kubernetes 
+  get_url:
+      url:  https://github.com/kubernetes/kubernetes/releases/download/v1.3.7/kubernetes.tar.gz
+      dest: /root
+- name: unarchive the file 
+  unarchive: src=/root/kubernetes.tar.gz dest=/root remote_src=yes copy=false
+- name: Create configuration to install kubernetes 
+  copy: src=config-default.sh dest=kubernetes/cluster/ubuntu/config-default.sh owner=root group=root mode=0664
+
+- user: name=root generate_ssh_key=yes ssh_key_bits=2048 ssh_key_file=.ssh/id_rsa
+# We must install pip via apt before we can use the pip module below
+- name: Add root user ssh key
+  shell: "cat /root/.ssh/id_rsa.pub >> /root/.ssh/authorized_keys"
+  shell: "cd /root/kubernetes/cluster &&  KUBERNETES_PROVIDER=ubuntu ./kube-up.sh"
+  async: 60
+  poll: 60
+- name: Check if /etc/default/ufw exists
+  stat:
+    path: /etc/default/ufw
+  register: ufw_default_exists
+
+- name: Change ufw default forward policy from drop to accept
+  lineinfile:
+    dest: /etc/default/ufw
+    regexp: "^DEFAULT_FORWARD_POLICY="
+    line: "DEFAULT_FORWARD_POLICY=\"ACCEPT\""
+  when: ufw_default_exists.stat.exists
+
+
